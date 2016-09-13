@@ -185,7 +185,7 @@ local function newChain(p)
 	local chain ={}
 	local lastNode = nil
 	for i = 1, #p-1 ,2 do
-		local x,y = pc[i],pc[i+1]
+		local x,y = p[i],p[i+1]
 		--chain[x] = chain[x] or {}
 		--chain[x][y] = newNode(x,y,lastNode,p1)
 		lastNode =newNode(x,y,lastNode,p)
@@ -201,6 +201,7 @@ end
 
 
 local function booleanWork(p1,p2,pc,method)
+	if not pc[1] then return end
 	local chain1 = newChain(p1)
 	local chain2 = newChain(p2)
 	local chainC = newChain(pc)
@@ -211,29 +212,60 @@ local function booleanWork(p1,p2,pc,method)
 	elseif method == "or" then
 
 	elseif method == "not" then
-		local detour = false
-		local inSide = false
-
+		local entry
+		local exit
 		for i,node in ipairs(chainC) do
+			
 			local x,y = node.x,node.y
 			local nodeP1 = checkNode[x][y][p1]
+			print("check",x,y)
 			if nodeP1 then --path共点
-				if nodeP1.next ~= node.next then --下一点分叉
-					local entry = node.next
-					nodeP1.next.prev = entry
-
-				end
-
+				
 				if nodeP1.prev ~= node.prev then -- 在本点合并
-					local exit = node.prev
-					nodeP1.prev.next = exit
-					exit.next = node
+					entry = node.prev
+					nodeP1.prev.next = entry
+					print("joint at",entry.x,entry.y)
+					if exit then
+						local current = entry
+						repeat
+							current.next = current.prev
+							current = current.next
+						until current == exit					
+					end
 				end
+
+
+				if nodeP1.next ~= node.next then --下一点分叉
+					exit = node.next
+					exit.next = nodeP1.next
+					print("break at",exit.x,exit.y)
+					if entry then						
+						local current = entry
+						repeat
+							current.next = current.prev
+							current = current.next
+						until current == exit					
+					end
+				end
+
+				
 			else
 				--只存在于pc也就是p1内部
-				inSide = true
+				print("inside")
 			end
 		end
+		if not entry then 
+			return 
+		end
+		local cur = entry
+		local result = {}
+		--error(1)
+		repeat
+			table.insert(result,cur.x)
+			table.insert(result,cur.y)
+			cur = cur.next
+		until cur == entry
+		return result
 	end
 end
 
