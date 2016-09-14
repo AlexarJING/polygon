@@ -1,4 +1,38 @@
-require "misc"
+function math.sign(x)
+	if x>0 then return 1
+	elseif x<0 then return -1
+	else return 0 end
+end
+
+function table.push(tab,tab2)
+	for i,v in ipairs(tab2) do
+		table.insert(tab,v)
+	end
+end
+
+function table.unshift(tab,tab2)
+	for i,v in ipairs(tab2) do
+		table.insert(tab,i,v)
+	end
+end
+
+function table.reverse(tab)
+	local len = #tab
+	local rt = {}
+	for i,v in ipairs(tab) do
+		rt[len-i+1] = v
+	end
+	tab = rt
+end
+
+function table.copy(tab)
+	return {unpack(tab)}
+end
+
+function math.distance(x1,y1,x2,y2)
+	return math.sqrt((x1-x2)^2+(y1-y2)^2)
+end
+
 local lineCross = function (x1,y1,x2,y2,x3,y3,x4,y4)
 	local denom, offset;         
 	local x, y             
@@ -63,22 +97,23 @@ local pointContain = function(x,y,polygon)
 	return oddNodes
 end
 local polygonArea = function(polygon) 
-	local e0 = {x = 0,y = 0};
-	local e1 = {x = 0,y = 0};
+	local ax,ay = 0,0;
+	local bx,by = 0,0;
 
 
 	local area = 0;
-	local first = polygon[1];
+	local fx , fy = polygon[1],polygon[2]
 
-	for i = 3 , #polygon do
-		local p = polygon[i-1]
-		local c = polygon[i]
-		e0.x = first.x - c.x;
-	    e0.y = first.y - c.y;
-	    e1.x = first.x - p.x;
-	    e1.y = first.y - p.y;
-	    area = area + (e0.x * e1.y) - (e0.x * e1.y)
+	for i = 3, #polygon-1 , 2 do
+		local px,py = polygon[i-2],polygon[i-1]
+		local cx,cy = polygon[i],polygon[i+1]
+		ax = fx - cx
+		ay = fy - cy
+		bx = fx - px
+		by = fy - py
+		area = area +(ax*by) - (ay*bx)
 	end
+
 	
 	return area/2
 end
@@ -339,10 +374,10 @@ local function polygonBoolean(subjectPoly, clipPoly, operation)
 			local sclone = table.copy(subjectPoly)
 			local cclone = table.copy(clipPoly)
 
-			local sarea = area(sclone)
-			local carea = area(cclone)
+			local sarea = polygonArea(sclone)
+			local carea = polygonArea(cclone)
 
-			if sign(sarea) == sign(carea) then
+			if math.sign(sarea) == math.sign(carea) then
 				if outer then
 					table.reverse(cclone)
 				elseif inner then
