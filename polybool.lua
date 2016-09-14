@@ -1,14 +1,5 @@
-local function lineTest(p1, p2, p3, p4)
-	local	x1 = p1[1];
-	local	y1 = p1[2];
-	local	x2 = p2[1];
-	local	y2 = p2[2];
-	local	x3 = p3[1];
-	local	y3 = p3[2];
-	local	x4 = p4[1];
-	local	y4 = p4[2];
-	local a1, a2, b1, b2, c1, c2
-	local r1, r2, r3, r4
+require "misc"
+local lineCross = function (x1,y1,x2,y2,x3,y3,x4,y4)
 	local denom, offset;         
 	local x, y             
 
@@ -21,7 +12,7 @@ local function lineTest(p1, p2, p3, p4)
 	r4 = a1 * x4 + b1 * y4 + c1;
 
 	if ( r3 ~= 0 and r4 ~= 0 and ((r3 >= 0 and r4 >= 0) or (r3 < 0 and r4 < 0))) then
-		return
+		return 
 	end
 
 	a2 = y4 - y3;
@@ -45,17 +36,17 @@ local function lineTest(p1, p2, p3, p4)
 
 	x = b1 * c2 - b2 * c1;
 	y = a2 * c1 - a1 * c2;
-  	return {x / denom, y / denom}
+  	return x / denom, y / denom
 end
-
-local function pointTest(node,polygon)
-	local x, y = node[1],node[2]
+local pointContain = function(x,y,polygon)
 	local pX={}
 	local pY={}
-	for i,v in ipairs(polygon) do
-		table.insert(pX, v[1])
-		table.insert(pY, v[2])
+	
+	for i = 1 , #polygon-1 ,2 do
+		table.insert(pX, polygon[i])
+		table.insert(pY, polygon[i+1])
 	end
+
 
 	local oddNodes=false
 	local pCount=#pX
@@ -71,10 +62,9 @@ local function pointTest(node,polygon)
 	end
 	return oddNodes
 end
-
-local function area(polygon) 
-	local e0 = {0,0};
-	local e1 = {0, 0};
+local polygonArea = function(polygon) 
+	local e0 = {x = 0,y = 0};
+	local e1 = {x = 0,y = 0};
 
 
 	local area = 0;
@@ -83,52 +73,21 @@ local function area(polygon)
 	for i = 3 , #polygon do
 		local p = polygon[i-1]
 		local c = polygon[i]
-		e0[1] = first[1] - c[1];
-	    e0[2] = first[2] - c[2];
-	    e1[1] = first[1] - p[1];
-	    e1[2] = first[2] - p[2];
-	    area = area + (e0[1] * e1[2]) - (e0[1] * e1[2])
+		e0.x = first.x - c.x;
+	    e0.y = first.y - c.y;
+	    e1.x = first.x - p.x;
+	    e1.y = first.y - p.y;
+	    area = area + (e0.x * e1.y) - (e0.x * e1.y)
 	end
 	
 	return area/2
 end
 
-function sign(x)
-	if x>0 then return 1
-	elseif x<0 then return -1
-	else return 0 end
-end
-
-function table.push(tab,tab2)
-	for i,v in ipairs(tab2) do
-		table.insert(tab,v)
-	end
-end
-
-function table.unshift(tab,tab2)
-	--table.reverse(tab2)
-	for i,v in ipairs(tab2) do
-		table.insert(tab,i,v)
-	end
-
-end
-
-function table.reverse(tab)
-	local len = #tab
-	local rt = {}
-	for i,v in ipairs(tab) do
-		rt[len-i+1] = v
-	end
-end
-
-local function copy(tab)
-	return {unpack(tab)}
-end
-
 local Node = {}
-function Node:new(vec,alpha,intersection)
+function Node:new(x,y,alpha,intersection)
 	local new = {
-		vec = vec,
+		x = x,
+		y = y,
 		next = nil,
 		prev = nil,
 		nextPoly =nil,
@@ -153,6 +112,7 @@ end
 
 function Node:last()
 	local a = self
+	
 	while a.next and a.next~=self do
 		a = a.next
 	end
@@ -165,13 +125,12 @@ function Node:createLoop()
 	self.prev = last.prev
 end
 
-function Node:firstNodeOfInterest()
+function Node:firstNodeOfIntersect()
 	local a = self
 	
-
-	while a do
+	while true do
 		a = a.next
-		if not a then break end
+		if not a then break end --should check error
 		if a == self then break end
 		if a.intersect and not a.visited then break end
 	end
@@ -181,6 +140,7 @@ end
 
 function Node:insertBetween(first,last)
 	local a = first
+	
 	while a~=last and a.alpha<self.alpha do
 		a = a.next
 	end
@@ -195,75 +155,70 @@ function Node:insertBetween(first,last)
 	self.next.prev = self;
 end
 
-local function createLinkedList(vecs)
-	local ret,where
+local function cleanList(verts)
+	for i = #verts , 4 , -1 do
+		if verts[i-3]== verts[i-1] and
+			verts[i-2] == verts[i] then
+			table.remove(verts, i)
+			table.remove(verts,i-1)
+		end
+	end
+	return verts
+end
 
-	for i,v in ipairs(vecs) do
-		if where then
-			where.next = Node:new(v)
-			where.next.prev = where
-			where = where.next
+local function createList(verts)
+	local first,current
+
+	for i = 1, #verts-1 , 2 do
+		if current then
+			current.next = Node:new(verts[i],verts[i+1])
+			current.next.prev = current
+			current = current.next
 		else
-			where = Node:new(v)
-			ret = where
+			current = Node:new(verts[i],verts[i+1])
+			first = current
 		end
 	end
 
-	return ret
+	local next = Node:new(first.x,first.y,1)--何意？current
+	current.next = next 
+	next.prev = current
+	return first , current -- first and last
 end
 
-local function distance(v1,v2)
-	return math.sqrt((v1[1]-v2[1])^2,(v1[2]-v2[2])^2)
-end
-
-local function clean(array)
-
-	for i = #array-1 , 1 , -1 do
-		local c = array[i]
-		local p = array[i+1]
-		if c[1] == p[1] and c[2] == p[2] then
-			table.remove(array,i)
-		end
-	end
-	return array
-end
 
 local function indentifyIntersections(subjectList, clipList)
-	local subject,clip
-	local auxs = subjectList:last()
-	auxs.next = Node:new(clipList.vec,auxs)
-	auxs.next.prev = auxs
-
-	local auxc = clipList:last()
-	auxc.next = Node:new(clipList.vec,auxc)
-	auxc.next.prev = auxc
-	
+		
 
 	local found = false 
-	subject = subjectList
+	local subject = subjectList
 	
 	while subject.next do
 		if not subject.intersect then
-			clip = clipList
+			local clip = clipList
 			while clip.next do
 				if not clip.intersect then
-
-					local a = subject.vec
-					local b = subject.next:nextNonIntersection().vec
-					local c = clip.vec
-					local d = clip.next:nextNonIntersection().vec
+					local subjectNext = subject.next:nextNonIntersection()
+					local clipNext = clip.next:nextNonIntersection()
+					local ax,ay = subject.x , subject.y
+					local bx,by = subjectNext.x , subjectNext.y
+					local cx,cy = clip.x , clip.y
+					local dx,dy = clipNext.x, clipNext.y
 					
-					local i = lineTest(a,b,c,d)
+					local x,y = lineCross(ax,ay,bx,by,cx,cy,dx,dy)
 					
-					if i and i~=true then
+					if x and x~=true then
 						found = true
-						local intersectionSubject = Node:new(i,distance(a,i)/distance(a,b),true)
-						local intersectionClip = Node:new(i,distance(c,i)/distance(c,d),true)
-						intersectionSubject.neighbor = intersectionClip
-						intersectionClip.neighbor = intersectionSubject
+						local alphaS = math.distance(ax,ay,x,y)/math.distance(ax,ay,bx,by)
+						local alphaC = math.distance(cx,cy,x,y)/math.distance(cx,cy,dx,dy)
 						
-						intersectionSubject:insertBetween(subject,subject.next:nextNonIntersection())
-						intersectionClip:insertBetween(clip,clip.next:nextNonIntersection())
+						local subjectInter = Node:new(x,y,alphaS,true)
+						local clipInter = Node:new(x,y,alphaC,true)
+						subjectInter.neighbor = clipInter
+						clipInter.neighbor = subjectInter						
+						subjectInter:insertBetween(subject,subjectNext)
+						clipInter:insertBetween(clip,clipNext)
+
 					end
 				end
 				clip = clip.next
@@ -276,12 +231,11 @@ local function indentifyIntersections(subjectList, clipList)
 end
 
 local function indentifyIntersectionType(subjectList, clipList, clipPoly, subjectPoly, type)
-	local subject,clip
-	local se = pointTest(subjectList.vec,clipPoly)
-	if type == "and" then
-		se = not se
-	end
-	subject = subjectList
+	
+	local se = pointContain(subjectList.x,subjectList.y,clipPoly)
+	if type == "and" then se = not se end
+	
+	local subject = subjectList
 	while subject do
 		if subject.intersect then
 			subject.entry = se
@@ -290,10 +244,10 @@ local function indentifyIntersectionType(subjectList, clipList, clipPoly, subjec
 		subject = subject.next
 	end
 
-	local ce = not pointTest(clipList.vec,subjectPoly)
+	local ce = not pointContain(clipList.x,clipList.y,subjectPoly)
 	if (type == "or") then ce = not ce end
 
-
+	local clip = clipList
 	while clip do
 		if clip.intersect then
 			clip.entry = ce
@@ -303,80 +257,52 @@ local function indentifyIntersectionType(subjectList, clipList, clipPoly, subjec
 	end
 end
 
+
 local function collectClipResults(subjectList, clipList)
 	subjectList:createLoop()
 	clipList:createLoop()
 
-	print("list subject")
-	local test = subjectList.next
-	while test and test ~= subjectList do
-		print(test.vec[1],test.vec[2])
-		test = test.next
-	end
-
-	print("list clip")
-	local test = clipList.next
-	while test and test ~= clipList do
-		print(test.vec[1],test.vec[2])
-		test = test.next
-	end
-
-	local crt , results = {} , {}
+	local walker , results = _ , {}
+	
 
 	while true do
-		crt = subjectList:firstNodeOfInterest()
-		if crt== subjectList then break end
-		result = {}
+		walker = subjectList:firstNodeOfIntersect()
+		if walker == subjectList then break end
+		local result = {}
 		while true do
-			crt.visited = not crt.visited
-			if crt ~= crt.neighbor then break end
-			table.insert(crt.vec)
-			local forward = crt.entry
+			if walker.visited  then break end
+			walker.visited = true
+			walker = walker.neighbor
+			table.insert(result,walker.x)
+			table.insert(result,walker.y)
+			local forward = walker.entry
 			while true do
-				crt.visited = true
-				crt = forward and crt.next or crt.prev
-				if crt.intersect then
-					crt.visited = true
+				walker.visited = true
+				walker = forward and walker.next or walker.prev
+				if walker.intersect then
 					break
 				else
-					--print(crt.vec[1],crt.vec[2])
-					table.insert(result,crt.vec)
+					table.insert(result,walker.x)
+					table.insert(result,walker.y)
 				end
-
 			end
 		end
 
-		table.insert(results,clean(result))
+		table.insert(results,result)
 	end
 
 	return results
 end
 
-local function toPoly(verts)
-	local rt = {}
-	for i = 1, #verts-1 , 2 do
-		table.insert(rt,{verts[i],verts[i+1]})
-	end
-	return rt
-end
 
-local function toVerts(poly)
-	local rt = {}
-	for i,v in ipairs(poly) do
-		table.insert(rt,v[1])
-		table.insert(rt,v[2])
-	end
-	return rt
-end
+local function polygonBoolean(subjectPoly, clipPoly, operation)
 
+	local subjectList ,last = createList(subjectPoly)
+	local clipList ,last2= createList(clipPoly)
 
-local function polygonBoolean(subjectVerts, clipVerts, operation)
-	local subjectPoly = toPoly(subjectVerts)
-	local clipPoly = toPoly(clipVerts)
-	local subjectList = createLinkedList(subjectPoly)
-	local clipList = createLinkedList(clipPoly)
     local subject, clip, res
     local isects = indentifyIntersections(subjectList, clipList);
+
 
 	if isects then
 	    indentifyIntersectionType(
@@ -388,30 +314,30 @@ local function polygonBoolean(subjectVerts, clipVerts, operation)
 		
 		res = collectClipResults(subjectList, clipList)	
 	else 
-		local inner = pointTest(subjectPoly[1],clipPoly)
-    	local outer = pointTest(clipPoly[1],subjectPoly)
+		local inner = pointContain(subjectPoly[1],subjectPoly[2],clipPoly)
+    	local outer = pointContain(clipPoly[1],clipPoly[2],subjectPoly)
 		res = {}
 
 		if operation == "or" then
 			if not inner and not outer then
-				table.push(res,copy(subjectPoly))
-				table.push(res,copy(clipPoly))
+				table.push(res,table.copy(subjectPoly))
+				table.push(res,table.copy(clipPoly))
 			elseif inner then
-				table.push(res,copy(clipPoly))
+				table.push(res,table.copy(clipPoly))
 			elseif outer then
-				table.push(res,copy(subjectPoly))
+				table.push(res,table.copy(subjectPoly))
 			end
 		elseif operation == "and" then
 			if inner then
-				table.push(res,copy(subjectPoly))
+				table.push(res,table.copy(subjectPoly))
 			elseif outer then
-				table.push(res,copy(clipPoly))
+				table.push(res,table.copy(clipPoly))
 			else
-				error("oops")
+				--error("oops")
 			end
 		elseif operation == "not" then	
-			local sclone = copy(subjectPoly)
-			local cclone = copy(clipPoly)
+			local sclone = table.copy(subjectPoly)
+			local cclone = table.copy(clipPoly)
 
 			local sarea = area(sclone)
 			local carea = area(cclone)
@@ -434,11 +360,8 @@ local function polygonBoolean(subjectVerts, clipVerts, operation)
 		end
 		
 	end
-	print("results")
-	for i,v in ipairs(res) do
-		print(v[1],v[2])
-	end
-	return toVerts(res)
+
+	return res
 end
 
 return polygonBoolean
